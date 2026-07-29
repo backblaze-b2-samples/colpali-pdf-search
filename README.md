@@ -11,6 +11,28 @@ Every artifact lives in **[Backblaze B2](https://www.backblaze.com/sign-up/ai-cl
 over the S3-compatible API. The only credentials you need are `B2_*` — the
 ColPali model runs locally, so there is no second provider key.
 
+## What it looks like
+
+**Dashboard** — corpus and storage stats, with the write-amplification headline putting page-image bytes next to embedding bytes and their ratio.
+
+![Dashboard with corpus stats and the write-amplification storage story](docs/images/dashboard.png)
+
+**Visual Search** — a natural-language query ("transformer model architecture diagram") ranks pages across the whole corpus by MaxSim relevance and streams each matching page image from B2 with its score.
+
+![Visual search results grid ranking matching PDF pages by relevance score](docs/images/search.png)
+
+**Library** — every ingested document as a card with its page-1 thumbnail, index status, page count, and ColPali model.
+
+![Document library grid of ingested PDFs with thumbnails and index status](docs/images/library.png)
+
+**Document detail** — one document's page images alongside its storage footprint (page images vs embeddings) and re-index / rename / delete actions.
+
+![Document detail view showing all rendered page images and storage stats](docs/images/document-detail.png)
+
+**Ingest** — upload a PDF and pick the render dpi and ColPali model; each page is rendered to an image in B2, ready to embed.
+
+![Ingest form for uploading a PDF and choosing render dpi and ColPali model](docs/images/ingest.png)
+
 ## Why B2: write amplification
 
 This is a storage-heavy workload by design. One PDF explodes into:
