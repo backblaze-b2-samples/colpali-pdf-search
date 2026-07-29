@@ -3,7 +3,7 @@
 Kept separate from `b2_client.py` (the file-browser/upload adapter, at its
 300-line ceiling) but reuses the same cached, custom-UA S3 client so boto3
 stays confined to the repo/ layer and connections are pooled. All access is via
-the S3-compatible API — no b2-native calls anywhere.
+the S3-compatible API — the native B2 API is never used.
 """
 
 import io
