@@ -24,6 +24,24 @@ class PageVectors:
     vectors: np.ndarray  # [num_patches, dim], float32, L2-normalized
 
 
+def _faiss():
+    """Import faiss lazily and cap it to a single OpenMP thread.
+
+    faiss-cpu and PyTorch (loaded via repo/colpali.py) each bundle their own
+    OpenMP runtime. With both live in one process, a multi-threaded faiss
+    parallel region aborts or segfaults on macOS ("OMP: Error #15 / #179").
+    Together with KMP_DUPLICATE_LIB_OK=TRUE (set in repo/__init__.py), running
+    faiss single-threaded keeps search stable while leaving torch
+    multithreaded for fast embedding. omp_set_num_threads is process-global and
+    idempotent, so calling it on every import is cheap and safe. Flat-index
+    search over a demo corpus does not benefit meaningfully from faiss threads.
+    """
+    import faiss
+
+    faiss.omp_set_num_threads(1)
+    return faiss
+
+
 def build_index(pages: list[PageVectors]) -> tuple[bytes, dict]:
     """Build a flat IP index over every page's patch vectors.
 
@@ -31,7 +49,7 @@ def build_index(pages: list[PageVectors]) -> tuple[bytes, dict]:
     {"dim": int, "rows": [{"doc_id", "page"}, ...]} aligned to index rows.
     Raises ValueError when there is nothing to index.
     """
-    import faiss
+    faiss = _faiss()
 
     if not pages:
         raise ValueError("Cannot build an index with no pages")
@@ -62,7 +80,7 @@ def search(
 
     Returns [(doc_id, page, score), ...] sorted by descending score.
     """
-    import faiss
+    faiss = _faiss()
 
     rows = mapping.get("rows", [])
     if not rows or index_bytes == b"":

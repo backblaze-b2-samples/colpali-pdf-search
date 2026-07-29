@@ -46,3 +46,22 @@ def test_build_index_rejects_no_pages():
 
     with pytest.raises(ValueError):
         build_index([])
+
+
+def test_repo_import_sets_openmp_duplicate_guard():
+    """faiss-cpu and torch each bundle an OpenMP runtime; importing app.repo
+    must set KMP_DUPLICATE_LIB_OK so the second runtime does not abort()."""
+    import os
+
+    import app.repo  # noqa: F401  -- import side effect sets the guard
+
+    assert os.environ.get("KMP_DUPLICATE_LIB_OK") == "TRUE"
+
+
+def test_faiss_helper_caps_openmp_to_single_thread():
+    """Search runs faiss single-threaded so its OpenMP never spins up the
+    parallel region that segfaults when torch's OpenMP is also loaded."""
+    from app.repo.faiss_index import _faiss
+
+    faiss = _faiss()
+    assert faiss.omp_get_max_threads() == 1
