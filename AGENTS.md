@@ -3,16 +3,36 @@
 
 This is the authoritative control surface for all coding agents. Read this first.
 
+**App:** ColPali PDF Search — self-hosted *visual* document search. PDFs are
+rendered to page images, embedded with ColPali (runs locally), indexed with
+FAISS, and searched by natural-language query. Backblaze B2 (S3-compatible API)
+is the sole storage layer; the only credentials are `B2_*`. See
+[ARCHITECTURE.md](ARCHITECTURE.md).
+
 ## 1. Repository Map
 
 ```
 apps/web/          Next.js 16 frontend (App Router, Tailwind v4, shadcn/ui)
+                   pages: / (dashboard), /ingest, /library, /documents/[id],
+                   /search, plus starter /files and /upload
 services/api/      FastAPI backend (layered: types/config/repo/service/runtime)
+                   repo: b2_client, store, pdf_render (fitz), colpali, faiss_index
+                   service: documents, ingest, search (+ starter files/upload)
 packages/shared/   Shared TypeScript types
 docs/              System of record (features, workflows, security, reliability)
 docs/exec-plans/   Execution plans and tech debt tracker
 infra/railway/     Deployment config
 ```
+
+**Environment:** `B2_APPLICATION_KEY_ID`, `B2_APPLICATION_KEY`,
+`B2_BUCKET_NAME`, `B2_REGION` (required; the S3 endpoint is derived from the
+region), optional `B2_PUBLIC_URL_BASE`, and optional ColPali knobs
+`COLPALI_MODEL`, `COLPALI_DEVICE`, `HF_TOKEN`. See `.env.example`.
+
+**External SDK containment:** `boto3` (storage) plus `torch`/`colpali-engine`,
+`faiss`, and `fitz` live only in `repo/`. The ML SDKs are imported *lazily*
+inside their functions so importing the app / running tests never loads the
+multi-GB stack and no model weights are downloaded during the build.
 
 ## 2. Building on This Starter Kit
 

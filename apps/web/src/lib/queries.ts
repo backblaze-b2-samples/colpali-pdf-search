@@ -3,18 +3,28 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ApiError,
+  deleteDocument,
   deleteFile,
+  getCorpusStats,
+  getDocument,
+  getDocuments,
   getFileDetail,
   getFiles,
   getFileStats,
   getHealth,
   getPreviewUrl,
   getUploadActivity,
+  indexDocument,
+  renameDocument,
+  visualSearch,
 } from "@/lib/api-client";
 import type {
+  Document,
+  DocumentDetail,
   FileMetadata,
   FileMetadataDetail,
-} from "@vibe-coding-starter-kit/shared";
+  SearchResponse,
+} from "@colpali-pdf-search/shared";
 
 // Single source of truth for query keys. Keep these tightly scoped so that
 // invalidating "files" doesn't blow away unrelated caches, and so an IDE
@@ -29,6 +39,11 @@ export const qk = {
   preview: (key: string) => [...qk.all, "preview", key] as const,
   detail: (key: string) => [...qk.all, "detail", key] as const,
   health: () => [...qk.all, "health"] as const,
+  documents: () => [...qk.all, "documents"] as const,
+  document: (id: string) => [...qk.all, "documents", id] as const,
+  corpusStats: () => [...qk.all, "corpus-stats"] as const,
+  search: (query: string, topK: number) =>
+    [...qk.all, "search", query, topK] as const,
 };
 
 export type Health = Awaited<ReturnType<typeof getHealth>>;
@@ -102,5 +117,68 @@ export function useDeleteFile() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.all });
     },
+  });
+}
+
+// --- Documents (ColPali corpus) -------------------------------------------
+
+export function useDocuments() {
+  return useQuery<Document[], ApiError>({
+    queryKey: qk.documents(),
+    queryFn: getDocuments,
+  });
+}
+
+export function useCorpusStats() {
+  return useQuery({
+    queryKey: qk.corpusStats(),
+    queryFn: getCorpusStats,
+  });
+}
+
+export function useDocument(id: string | undefined) {
+  return useQuery<DocumentDetail, ApiError>({
+    queryKey: qk.document(id ?? ""),
+    queryFn: () => getDocument(id as string),
+    enabled: !!id,
+  });
+}
+
+export function useRenameDocument() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, title }: { id: string; title: string }) =>
+      renameDocument(id, title),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.all }),
+  });
+}
+
+export function useDeleteDocument() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deleteDocument(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.all }),
+  });
+}
+
+/** Kick off ColPali embedding + FAISS (re)build for one document. */
+export function useIndexDocument() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => indexDocument(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.all }),
+  });
+}
+
+// --- Visual search --------------------------------------------------------
+
+// Fetches only when `query` is non-empty. The submitted query is part of the
+// key so results cache per query and don't refetch while the box is edited.
+export function useVisualSearch(query: string, topK = 10) {
+  return useQuery<SearchResponse, ApiError>({
+    queryKey: qk.search(query, topK),
+    queryFn: () => visualSearch(query, topK),
+    enabled: query.trim().length > 0,
+    staleTime: 60_000,
   });
 }

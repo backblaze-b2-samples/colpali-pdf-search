@@ -1,17 +1,17 @@
 <!-- last_verified: 2026-07-27 -->
 # Security
 
-Security principles and implementation for the vibe-coding-starter-kit.
+Security principles and implementation for the colpali-pdf-search.
 
 ## Trust Boundaries
 
 - **Frontend -> API**: CORS-restricted to configured origins, scoped to `GET/POST/DELETE/OPTIONS`. `allow_credentials` is `False` (no cookie/session auth today); enable it only alongside real auth and a tightened origin allowlist.
-- **API -> B2**: Authenticated via `B2_KEY_ID` + `B2_APPLICATION_KEY`, signature v4
+- **API -> B2**: Authenticated via `B2_APPLICATION_KEY_ID` + `B2_APPLICATION_KEY`, signature v4
 - **Client -> B2**: Presigned URLs for download (10-min expiry, `Content-Disposition: attachment`)
 
 ## Authentication & Multi-Tenancy
 
-- **No auth by design.** The file API (`/files`, `/files-by-key`, `/upload`) is unauthenticated and bucket-wide — any client can list, download, and delete every object. Acceptable for a single-tenant demo; the rate limiter guards the open endpoints.
+- **No auth by design.** The file API (`/files`, `/files-by-key`, `/upload`) and the document/search API (`/documents`, `/documents/{id}`, `/documents/{id}/index`, `/search`) are unauthenticated and corpus-wide — any client can list, ingest, index, search, download, and delete. Acceptable for a single-tenant demo; the rate limiter guards the open endpoints.
 - **Adding auth to a clone does not close this automatically.** A login screen alone leaves an open, cross-user file API. You must both (1) require auth on every file route and (2) scope listings and reads to the caller's own prefixes — skipping either lets one signed-in user read and delete another's files. See the co-located notes in `runtime/files.py` and `service/files.py`.
 
 ## Upload Validation

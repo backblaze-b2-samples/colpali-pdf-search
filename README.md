@@ -1,110 +1,58 @@
-<!-- last_verified: 2026-07-28 -->
-# Vibe Coding Starter Kit
+<!-- last_verified: 2026-07-29 -->
+# ColPali PDF Search
 
-Stop wiring boilerplate and start building. This open-source starter kit gives vibe coders and AI coding agents a production-ready foundation — a full-stack TypeScript + Python template with a pre-built dashboard UI, file upload system, and **[Backblaze B2](https://www.backblaze.com/sign-up/ai-cloud-storage?utm_source=github&utm_medium=referral&utm_campaign=ai_artifacts&utm_content=b2ai-oss-start)** cloud storage already integrated. Save thousands of tokens on setup prompts, skip the "build me a dashboard from scratch" loop, and go straight to building your app's unique features.
+Search a PDF corpus **visually**. ColPali PDF Search retrieves the right *page*
+of your reports, decks, and scanned documents using vision embeddings (ColPali)
+over rendered page images — **no OCR, no text extraction**. Type a
+natural-language query ("show me the slide with the revenue waterfall chart")
+and land on the exact page.
 
-**What you get out of the box:**
-- Full-stack dashboard UI (Next.js 16 + React 19 + Tailwind v4 + shadcn/ui)
-- File upload with drag-and-drop, progress tracking, and metadata extraction
-- File browser with preview, download, and delete
-- FastAPI backend with strict layered architecture and structural tests
-- Agent-optimized docs — your AI coding agent can read the repo and start contributing immediately
+Every artifact lives in **[Backblaze B2](https://www.backblaze.com/sign-up/ai-cloud-storage?utm_source=github&utm_medium=referral&utm_campaign=ai_artifacts&utm_content=b2ai-colpali-pdf-search)**
+over the S3-compatible API. The only credentials you need are `B2_*` — the
+ColPali model runs locally, so there is no second provider key.
 
-## What it looks like
+## Why B2: write amplification
 
-**Dashboard** — stats, upload activity, and recent uploads at a glance:
+This is a storage-heavy workload by design. One PDF explodes into:
 
-![Dashboard view showing stat cards, upload activity chart, and recent uploads table](docs/images/b2-starterkit-dashboard1.png)
+- **N page images** — every page rendered to a PNG
+- **N per-page multi-vector embeddings** — ColPali late-interaction vectors that
+  can rival or exceed the raw image footprint
+- **one FAISS index** — built over all page-patch vectors across the corpus
 
-**File browser** — tree view with preview, download, and delete:
+All of it is written to, listed from, and streamed out of B2. The dashboard puts
+the headline front and centre: page-image bytes vs embedding bytes, and the
+embedding:image ratio. B2 is the single storage layer — there is no database.
 
-![File browser view showing a tree of files with hover actions](docs/images/b2-starterkit-fileview2.png)
+## Features
 
-## Agent-First Architecture
+- **Document ingest** — upload a PDF; each page is rendered to a PNG at a chosen
+  dpi and stored under `pages/<id>/`
+- **ColPali embedding + FAISS index** — embed each page into a multi-vector
+  embedding (`embeddings/<id>/`), then build the FAISS index (`index/`)
+- **Visual search** — embed a text query, MaxSim-rank pages, and stream the
+  matching page images from B2 with relevance scores
+- **Document library** — a scoped explorer over the app's `documents/` prefix
+  (page count, status, page-1 thumbnail; rename / re-index / delete)
+- **Full-bucket file browser** — the starter's `/files` view over every raw
+  object (pages, embeddings, index) with preview / download / delete
+- **Dashboard** — corpus + storage stats, including the write-amplification headline
 
-This repo is optimized for coding agents. Use the template, point your agent at it, and start building.
+## Tech Stack
 
-The structure follows the principle that **repository knowledge is the system of record**. Anything an agent can't access in-context doesn't exist — so everything it needs to reason about the codebase is versioned, co-located, and discoverable from the repo itself.
-
-### How it works
-
-**[AGENTS.md](AGENTS.md) is the single source of truth for all coding agents.** A ~100 line entry point gives agents the repository layout, architectural invariants, commands, conventions, and pointers to deeper docs. Agent-specific files (CLAUDE.md, GEMINI.md, Copilot instructions, etc.) are thin pointers back to AGENTS.md.
-
-**Architecture is enforced mechanically, not by convention.** Layering rules, import boundaries, file size limits, and SDK containment are verified by structural tests and lints that run on every change. When rules are enforceable by code, agents follow them reliably.
-
-**The knowledge base is structured for progressive disclosure:**
-
-```
-AGENTS.md              Single source of truth — layout, invariants, commands, conventions
-ARCHITECTURE.md        System layout, layering rules, data flows
-docs/
-  features/            Feature docs (inputs, outputs, flows, edge cases)
-  app-workflows.md     User journeys
-  dev-workflows.md     Engineering workflows and testing
-  SECURITY.md          Security principles
-  RELIABILITY.md       Reliability expectations
-  exec-plans/          Execution plans and tech debt tracker
-```
-
-### Key design decisions
-
-| Principle | Implementation |
-|-----------|---------------|
-| Give agents a single source of truth | AGENTS.md ~100 lines — layout, invariants, commands, conventions |
-| Enforce invariants mechanically | Structural tests + ruff + ESLint verify boundaries |
-| DRY documentation | Each fact lives in one place; no redundant files to drift |
-| Strict layered architecture | `types -> config -> repo -> service -> runtime`, enforced by tests |
-| Prefer boring, composable libraries | stdlib logging over frameworks, Pydantic over ad-hoc validation |
-| Contain external SDKs | `boto3` only in `repo/` layer — verified by structural test |
-| Keep files agent-sized | 300-line limit per file, enforced by test |
-| Docs updated with code | Same-PR requirement prevents documentation rot |
-| Structured observability | JSON logging, `/metrics` endpoint, request tracing |
-
-This approach draws from [OpenAI's experience building with Codex](https://openai.com/index/harness-engineering/): agents work best in environments with strict boundaries, predictable structure, and progressive context disclosure.
+- TypeScript, Next.js 16, React 19, Tailwind v4, shadcn/ui, TanStack Query
+- Python 3.11+, FastAPI, boto3, Pydantic v2
+- ColPali (`colpali-engine`), PyTorch, `transformers`, FAISS (`faiss-cpu`),
+  PyMuPDF (`fitz`) — all local, no external provider
+- Backblaze B2 (S3-compatible object storage)
+- pnpm workspaces (monorepo)
 
 ## Quick Start
 
-You need: Node.js >= 20, pnpm >= 9, Python >= 3.11, and a free **[Backblaze B2 account](https://www.backblaze.com/sign-up/ai-cloud-storage?utm_source=github&utm_medium=referral&utm_campaign=ai_artifacts&utm_content=b2ai-oss-start)**.
-
-### Supported local environments
-
-Local scripts are supported on macOS, Linux, and WSL2. Native Windows is not
-supported yet because the dev scripts use POSIX shell syntax and
-`services/api/.venv/bin/*` paths; use WSL2 on Windows.
-
-Cloud or sandboxed coding-agent environments also need permission for dependency
-downloads during `pnpm run setup`. Running the app or Playwright E2E requires
-localhost server binding for the web server on port 3000 and the API on
-8000-8009, plus permission to launch the Playwright Chromium browser. If a
-sandbox denies binding, `pnpm run doctor` and `scripts/pick-port.mjs` report
-`EPERM`/`EACCES` as a permissions issue instead of a busy port. A host without
-IPv6 (many containers) is not treated as a failure — the IPv4 probe decides.
-
-### Start a new project
-
-**Option 1: GitHub Template (recommended)**
-
-Click the green **"Use this template"** button at the top of this repo, name your project, then:
-
-```bash
-git clone https://github.com/yourorg/my-cool-app.git
-cd my-cool-app
-```
-
-**Option 2: Clone and reinitialize**
-
-```bash
-git clone https://github.com/backblaze-b2-samples/vibe-coding-starter-kit.git my-cool-app
-cd my-cool-app
-rm -rf .git
-git init
-git add .
-git commit -m "Initial commit from vibe-coding-starter-kit"
-```
-
-Either way you get a clean project with no upstream history — ready to push to your own repo and point your agent at it.
-
-### Setup
+You need: Node.js >= 20, pnpm >= 9, Python >= 3.11, and a free
+**[Backblaze B2 account](https://www.backblaze.com/sign-up/ai-cloud-storage?utm_source=github&utm_medium=referral&utm_campaign=ai_artifacts&utm_content=b2ai-colpali-pdf-search)**.
+Local scripts are supported on macOS, Linux, and WSL2 (native Windows is not
+supported — use WSL2).
 
 **1. Run setup**
 
@@ -112,27 +60,29 @@ Either way you get a clean project with no upstream history — ready to push to
 pnpm run setup
 ```
 
-This copies `.env.example` to `.env` only when `.env` does not already exist,
-installs workspace dependencies from the lockfile, creates `services/api/.venv`
-if missing, and installs the API requirements. It is safe to rerun and never
-overwrites an existing `.env`.
+This copies `.env.example` to `.env` (only if missing), installs workspace
+dependencies, creates `services/api/.venv`, and installs the API requirements.
+The ML dependencies (torch, colpali-engine, faiss-cpu) are sizeable, and the
+model weights download on first search/index — see the note below.
 
-> Use the `pnpm run` form: `setup` (like `doctor`) is a built-in pnpm command
-> before pnpm 11, so bare `pnpm setup` would run pnpm's own command instead of
-> this script.
+> Use the `pnpm run` form: `setup` and `doctor` are built-in pnpm commands
+> before pnpm 11, so the bare forms would run pnpm's own commands.
 
 **2. Add your B2 credentials**
 
-Open `.env` in your editor and keep it visible. Then head to the [Backblaze B2 dashboard](https://secure.backblaze.com/b2_buckets.htm?utm_source=github&utm_medium=referral&utm_campaign=ai_artifacts&utm_content=b2ai-oss-start) and:
+Open `.env` and fill in the standard `B2_*` values from the
+[Backblaze B2 dashboard](https://secure.backblaze.com/b2_buckets.htm?utm_source=github&utm_medium=referral&utm_campaign=ai_artifacts&utm_content=b2ai-colpali-pdf-search):
 
-1. **Create a bucket.** B2 will show two values — paste each into `.env`:
-   - **Bucket Unique Name** → `B2_BUCKET_NAME`
-   - **Endpoint** → `B2_ENDPOINT`
-2. **Create an application key** with `Read and Write` permission. B2 will show two values — paste each into `.env`:
-   - **keyID** → `B2_KEY_ID`
-   - **applicationKey** → `B2_APPLICATION_KEY` *(only shown once — paste it now)*
+- **Bucket Unique Name** → `B2_BUCKET_NAME`
+- The region segment of your bucket's S3 endpoint (e.g. `us-west-004` from
+  `s3.us-west-004.backblazeb2.com`) → `B2_REGION`
+- **keyID** → `B2_APPLICATION_KEY_ID`
+- **applicationKey** → `B2_APPLICATION_KEY` *(shown once — paste it now)*
 
-> Want a walkthrough? See the docs for [creating a bucket](https://www.backblaze.com/docs/cloud-storage-create-and-manage-buckets) and [creating app keys](https://www.backblaze.com/docs/cloud-storage-create-and-manage-app-keys).
+`B2_PUBLIC_URL_BASE` is optional (only used to build public object URLs for a
+public bucket). The ColPali knobs are optional too: `COLPALI_MODEL`,
+`COLPALI_DEVICE`, and `HF_TOKEN` (a one-time model-download token for the gated
+PaliGemma base; the ungated `vidore/colqwen2-v1.0` model needs no token).
 
 **3. Run it**
 
@@ -140,108 +90,51 @@ Open `.env` in your editor and keep it visible. Then head to the [Backblaze B2 d
 pnpm dev
 ```
 
-That's it. Frontend at `localhost:3000`, API at `localhost:8000`. Upload a file and see it working. Interactive API docs (Swagger UI) are at `localhost:8000/docs`, with ReDoc at `/redoc`.
+Frontend at `localhost:3000`, API at `localhost:8000`. Ingest a short PDF, click
+**Run indexing** on its detail page, then search from `/search`. Interactive API
+docs are at `localhost:8000/docs`.
 
-`pnpm dev` runs the preflight check first — it catches the common setup gotchas (wrong Node/Python version, missing venv, missing or placeholder `.env`, ports already taken) and tells you exactly how to fix each one. Run it standalone any time with `pnpm run doctor`.
-
-## Building Your App
-
-When you adapt this kit for a new app, keep the shared scaffolding and only swap out what's app-specific:
-
-- **Keep** the UI kit (`apps/web/src/components/ui/` + design tokens in `globals.css` + `/design`).
-- **Keep** the File Explorer (`/files`) and Upload (`/upload`) pages and their sidebar nav entries — they're the reusable B2-backed surface.
-- **Adapt** the Dashboard (`/`) to your use case — replace the default stats, chart, and recent uploads with metrics that reflect what your app actually does.
-- **Rebrand** by editing a single file: `apps/web/src/lib/app-config.ts` holds the app name and description (`APP_NAME`, `APP_DESCRIPTION`). Changing them there updates the page title, sidebar, and breadcrumb everywhere — no other files to touch.
-
-Full contract and rationale: [AGENTS.md §2 — Building on This Starter Kit](AGENTS.md#2-building-on-this-starter-kit).
-
-## Core Features
-
-- [File Upload](docs/features/file-upload.md) — drag-and-drop upload with real-time progress
-- [File Browser](docs/features/file-browser.md) — list, preview, download, delete files
-- [Dashboard](docs/features/dashboard.md) — stats cards, upload chart, recent uploads
-- [Metadata Extraction](docs/features/metadata-extraction.md) — image dimensions, EXIF, PDF info, checksums
-- [Design System](docs/design-system.md) — tokens, primitives, AI elements, the blaze generating loader, and inline `ErrorState` / `EmptyState` patterns. Live preview at `/design`.
-- Inline error handling — fetch failures surface *what's wrong* (API offline, 401, 5xx) and offer a Retry, instead of silently rendering empty state.
-- Single-source config — one `.env` at the repo root powers both API and web app, validated at startup so misconfig fails fast with a readable message.
-- Centralized data layer — every fetch goes through TanStack Query hooks in `apps/web/src/lib/queries.ts`; cache invalidation is one call after a mutation.
-- Checked API contract — `docs/api/openapi.json` plus `pnpm contract:check` catch FastAPI/client route drift.
-- Structural tests — verify layering rules, import boundaries, SDK containment, file size limits
-- Structured JSON logging — every request traced with `request_id` and timing
-- `/health` endpoint — B2 connectivity check
-- `/metrics` endpoint — Prometheus-format counters (request count, latency, uploads)
-- `/docs` + `/redoc` — auto-generated interactive API docs (toggle off in prod with `ENABLE_DOCS=false`)
-- Per-IP rate limiting and magic-byte upload validation — see [SECURITY.md](docs/SECURITY.md)
-
-## Tech Stack
-
-- TypeScript, Next.js 16, React 19, Tailwind v4, shadcn/ui, Recharts
-- TanStack Query — caching, dedup, retry, stale-while-revalidate for every fetch
-- Python 3.11+, FastAPI, boto3, Pydantic v2, Pillow, PyPDF2
-- Backblaze B2 (S3-compatible object storage)
-- pnpm workspaces (monorepo)
+> **Model + device note.** ColPali runs locally. Device selection is runtime
+> autodetect (CUDA → CPU; Apple MPS is skipped by default because PaliGemma float
+> ops are unstable on MPS — set `COLPALI_DEVICE=mps` to force it). Weights are
+> multi-GB and download once on first use, so use a tiny corpus (1–2 short PDFs)
+> for a first run. The default model's PaliGemma base is HF-gated: a one-time
+> free Hugging Face account + accepting the model terms is needed to download it,
+> or switch to `vidore/colqwen2-v1.0`.
 
 ## Commands
 
 | Command | What it does |
 |---------|-------------|
-| `pnpm run setup` | Idempotently copy `.env.example` to `.env` only if missing, install workspace dependencies, create the backend venv, and install API requirements |
-| `pnpm run doctor` | Preflight environment check (also runs automatically before `pnpm dev`) |
+| `pnpm run setup` | Copy `.env.example` to `.env` if missing, install deps, create the backend venv, install API requirements |
+| `pnpm run doctor` | Preflight environment check (also runs before `pnpm dev`) |
 | `pnpm dev` | Start frontend + backend |
-| `pnpm dev:web` | Frontend only |
-| `pnpm dev:api` | Backend only |
-| `pnpm contract:export` | Export deterministic FastAPI OpenAPI JSON to `docs/api/openapi.json` |
-| `pnpm contract:check` | Verify the checked-in OpenAPI artifact and frontend API client route registry |
-| `pnpm check:agent-docs` | Validate agent shims, command docs, CI claims, and `.env` ignore coverage |
-| `pnpm verify` | Canonical non-live pre-PR suite — chains `check:agent-docs`, `verify:api`, then `verify:web` |
-| `pnpm verify:api` | Backend half: API lint, API tests, structure tests |
-| `pnpm verify:web` | Frontend half: web lint, web unit tests, web typecheck + build |
-| `pnpm verify:full` | `pnpm run doctor`, then `pnpm verify`, then Playwright E2E; requires populated `.env`, local server/browser permission, port 3000 free, and Chromium installed |
-| `pnpm build` | Build frontend |
-| `pnpm lint` | Lint frontend |
-| `pnpm lint:api` | Lint backend (ruff) |
-| `pnpm test:web` | Run frontend unit tests (vitest) |
-| `pnpm test:api` | Run backend tests |
-| `pnpm check:structure` | Verify layering rules |
-| `pnpm test:e2e` | Playwright E2E smoke tests (run `pnpm --filter @vibe-coding-starter-kit/web exec playwright install chromium` once first) |
+| `pnpm dev:web` / `pnpm dev:api` | Frontend / backend only |
+| `pnpm contract:export` | Export the deterministic FastAPI OpenAPI JSON |
+| `pnpm contract:check` | Verify the OpenAPI artifact + frontend client route registry |
+| `pnpm check:agent-docs` | Validate agent shims, command docs, CI claims, `.env` ignore coverage |
+| `pnpm verify` | Canonical non-live pre-PR suite — `check:agent-docs`, then `verify:api`, then `verify:web` |
+| `pnpm verify:api` | Backend half: API lint, tests, structure tests |
+| `pnpm verify:web` | Frontend half: web lint, unit tests, typecheck + build |
+| `pnpm verify:full` | `pnpm run doctor`, then `pnpm verify`, then Playwright E2E (needs a live local app) |
+| `pnpm lint` / `pnpm lint:api` | Lint frontend / backend |
+| `pnpm test:web` / `pnpm test:api` | Unit tests (vitest / pytest) |
+| `pnpm check:structure` | Structural boundary tests |
 
-Run `pnpm run setup` once before local development, and rerun it after pulling
-dependency changes. It installs from the committed lockfile, so if you add a
-dependency yourself, run `pnpm install` to refresh `pnpm-lock.yaml` first. Run
-`pnpm verify` before opening a PR; it needs
-`services/api/.venv` from setup. Run `pnpm verify:full` when you can start the
-local app stack and browser tests: `.env` must contain real B2 values, local
-server binding must be permitted, Playwright's Chromium browser must be
-installed, and port 3000 must be free (or already serving this app). Playwright
-waits on `http://localhost:3000`,
-but `next dev` falls back to the next free port when 3000 is taken — so an
-unrelated process on 3000 makes the E2E run time out. The API starts at
-`localhost:8000` or the next free port chosen by `scripts/dev.sh`.
+Run `pnpm verify` before opening a PR (it needs `services/api/.venv` from setup).
 
 ## Documentation Map
 
 | Doc | Purpose |
 |-----|---------|
 | [AGENTS.md](AGENTS.md) | Agent table of contents — start here |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | System layout, layering, data flows |
-| [docs/features/](docs/features/) | Feature docs (upload, browser, dashboard, metadata) |
-| [docs/design-system.md](docs/design-system.md) | Design tokens, primitives, AI elements, loader, error/empty states |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | System layout, layering, data flows, B2 object layout |
+| [docs/features/](docs/features/) | Feature docs (ingest, embedding, index, search, library, dashboard, file browser) |
 | [docs/app-workflows.md](docs/app-workflows.md) | User journeys |
 | [docs/dev-workflows.md](docs/dev-workflows.md) | Engineering workflows and testing |
 | [docs/SECURITY.md](docs/SECURITY.md) | Security principles |
 | [docs/RELIABILITY.md](docs/RELIABILITY.md) | Reliability expectations |
-| [docs/exec-plans/](docs/exec-plans/) | Execution plans and tech debt tracker |
-
-## Contributing
-
-Start with [AGENTS.md](AGENTS.md). It's the map — everything else is discoverable from there.
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
-
-## Claude Agent B2 Skill
-
-Manage Backblaze B2 from your terminal using natural language (list/search, audits, stale or large file detection, security checks, safe cleanup).
-
-Repo: [https://github.com/backblaze-b2-samples/claude-skill-b2-cloud-storage](https://github.com/backblaze-b2-samples/claude-skill-b2-cloud-storage)
+MIT License — see [LICENSE](LICENSE) for details.

@@ -2,11 +2,28 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    b2_endpoint: str = "https://s3.us-west-004.backblazeb2.com"
-    b2_key_id: str = ""
+    # Backblaze B2, S3-compatible API. Standard B2_* names (see .env.example).
+    # The S3 endpoint is derived from the region, so no full endpoint URL is
+    # stored and no region string is hardcoded in source.
+    b2_application_key_id: str = ""
     b2_application_key: str = ""
     b2_bucket_name: str = ""
-    b2_public_url: str = ""
+    b2_region: str = ""
+    b2_public_url_base: str = ""
+
+    # ColPali visual-embedding model. Runs locally — no external provider key.
+    # Default base (PaliGemma) is HF-gated: a one-time free HF account + accepting
+    # the model terms is needed to download weights. The colqwen2 alternative is
+    # ungated and lighter. HF_TOKEN is a model-download token, NOT a per-run key.
+    colpali_model: str = "vidore/colpali-v1.2"
+    # Empty = runtime autodetect (CUDA -> CPU; MPS skipped by default, see
+    # repo/colpali.py). Override with "cuda", "mps", or "cpu".
+    colpali_device: str = ""
+    hf_token: str = ""
+    # Rendered page resolution. Finite set surfaced in the ingest form.
+    render_dpi: int = 150
+    # How many nearest pages a visual search returns.
+    search_top_k: int = 10
 
     api_port: int = 8000
     # Interactive API docs (/docs, /redoc, /openapi.json). On by default for
@@ -45,6 +62,15 @@ class Settings(BaseSettings):
     download_count_file: str = "data/download_count.json"
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
+
+    @property
+    def b2_endpoint(self) -> str:
+        """S3 endpoint derived from the region. Empty when region is unset so
+        startup validation surfaces the missing B2_REGION rather than building
+        a malformed URL."""
+        if not self.b2_region:
+            return ""
+        return f"https://s3.{self.b2_region}.backblazeb2.com"
 
     @property
     def cors_origins(self) -> list[str]:

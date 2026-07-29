@@ -45,6 +45,59 @@ export interface FileUploadResponse {
   metadata: FileMetadataDetail | null;
 }
 
+export type DocumentStatus = "rendered" | "indexed";
+
+export interface Document {
+  id: string;
+  title: string;
+  page_count: number;
+  dpi: number;
+  model: string;
+  status: DocumentStatus;
+  created_at: string;
+  updated_at: string;
+  page_bytes: number;
+  embedding_bytes: number;
+  thumbnail_url: string | null;
+}
+
+export interface DocumentPage {
+  page: number;
+  key: string;
+  url: string;
+}
+
+export interface DocumentDetail extends Document {
+  pages: DocumentPage[];
+}
+
+export interface CorpusStats {
+  documents: number;
+  indexed_documents: number;
+  total_pages: number;
+  page_bytes: number;
+  page_bytes_human: string;
+  embedding_bytes: number;
+  embedding_bytes_human: string;
+  index_bytes: number;
+  index_bytes_human: string;
+}
+
+export interface SearchHit {
+  doc_id: string;
+  title: string;
+  page: number;
+  score: number;
+  key: string;
+  url: string;
+}
+
+export interface SearchResponse {
+  query: string;
+  top_k: number;
+  hits: SearchHit[];
+}
+
 export interface DailyUploadCount {
   date: string;
   uploads: number;

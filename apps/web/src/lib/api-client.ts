@@ -1,15 +1,19 @@
 import type {
+  CorpusStats,
   DailyUploadCount,
+  Document,
+  DocumentDetail,
   FileMetadata,
   FileMetadataDetail,
   FileUploadResponse,
+  SearchResponse,
   UploadStats,
-} from "@vibe-coding-starter-kit/shared";
+} from "@colpali-pdf-search/shared";
 
 export const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 type ApiClientRoute = {
-  method: "delete" | "get" | "post";
+  method: "delete" | "get" | "patch" | "post";
   path: string;
 };
 
@@ -28,6 +32,14 @@ export const API_CLIENT_ROUTES = {
   legacyFileMetadata: { method: "get", path: "/files/{key}" },
   legacyFileDelete: { method: "delete", path: "/files/{key}" },
   upload: { method: "post", path: "/upload" },
+  documents: { method: "get", path: "/documents" },
+  documentCreate: { method: "post", path: "/documents" },
+  corpusStats: { method: "get", path: "/documents/stats" },
+  documentDetail: { method: "get", path: "/documents/{doc_id}" },
+  documentRename: { method: "patch", path: "/documents/{doc_id}" },
+  documentDelete: { method: "delete", path: "/documents/{doc_id}" },
+  documentIndex: { method: "post", path: "/documents/{doc_id}/index" },
+  search: { method: "get", path: "/search" },
 } as const satisfies Record<string, ApiClientRoute>;
 
 /** Typed API error with HTTP status code for caller-side branching. */
@@ -270,4 +282,86 @@ export function uploadFile(
     );
     xhr.send(formData);
   });
+}
+
+// --- Documents (ColPali corpus) -------------------------------------------
+
+function documentPath(docId: string): string {
+  if (docId.length === 0) throw new ApiError("Document id is required", 400);
+  return `/documents/${encodeURIComponent(docId)}`;
+}
+
+export async function getDocuments() {
+  return apiFetch<Document[]>(API_CLIENT_ROUTES.documents.path);
+}
+
+export async function getCorpusStats() {
+  return apiFetch<CorpusStats>(API_CLIENT_ROUTES.corpusStats.path);
+}
+
+export async function getDocument(docId: string) {
+  return apiFetch<DocumentDetail>(documentPath(docId));
+}
+
+export async function renameDocument(docId: string, title: string) {
+  return apiFetch<Document>(documentPath(docId), {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title }),
+  });
+}
+
+export async function deleteDocument(docId: string) {
+  return apiFetch<{ deleted: boolean; id: string }>(documentPath(docId), {
+    method: "DELETE",
+  });
+}
+
+export async function indexDocument(docId: string) {
+  return apiFetch<Document>(`${documentPath(docId)}/index`, { method: "POST" });
+}
+
+/** Ingest a PDF. Uses XHR so the caller can show upload progress. */
+export function ingestDocument(
+  file: File,
+  fields: { title: string; dpi: string; model: string },
+  onProgress?: (percent: number) => void
+): Promise<Document> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("title", fields.title);
+    formData.append("dpi", fields.dpi);
+    formData.append("model", fields.model);
+
+    xhr.upload.addEventListener("progress", (e) => {
+      if (e.lengthComputable && onProgress) {
+        onProgress(Math.round((e.loaded / e.total) * 100));
+      }
+    });
+    xhr.addEventListener("load", () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(JSON.parse(xhr.responseText));
+      } else {
+        try {
+          const body = JSON.parse(xhr.responseText);
+          reject(new ApiError(body.detail || `Ingest failed: ${xhr.status}`, xhr.status));
+        } catch {
+          reject(new ApiError(`Ingest failed: ${xhr.status}`, xhr.status));
+        }
+      }
+    });
+    xhr.addEventListener("error", () => reject(networkError()));
+    xhr.addEventListener("abort", () => reject(new ApiError("Ingest aborted", 0)));
+    xhr.open("POST", `${API_BASE}${API_CLIENT_ROUTES.documentCreate.path}`);
+    xhr.send(formData);
+  });
+}
+
+// --- Visual search --------------------------------------------------------
+
+export async function visualSearch(query: string, topK = 10) {
+  const params = new URLSearchParams({ q: query, top_k: String(topK) });
+  return apiFetch<SearchResponse>(`${API_CLIENT_ROUTES.search.path}?${params.toString()}`);
 }

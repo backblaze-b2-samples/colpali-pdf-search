@@ -1,34 +1,32 @@
-<!-- last_verified: 2026-07-28 -->
+<!-- last_verified: 2026-07-29 -->
 # Architecture
+
+ColPali PDF Search is a self-hosted visual document search app. It retrieves the
+right *page* of a PDF corpus using ColPali vision embeddings over rendered page
+images — no OCR, no text extraction. Backblaze B2 (S3-compatible API) is the
+single storage layer; the only credentials are `B2_*` (the model runs locally).
 
 ## Components
 
 - **apps/web/** — Next.js 16 frontend (App Router, Tailwind v4, shadcn/ui)
-  - Dashboard with stats, upload chart, recent uploads
-  - File upload with drag-and-drop, progress tracking
-  - File browser with preview, download, delete
-  - Dark mode via `next-themes`
+  - Dashboard with corpus + storage stats
+  - Ingest (`/ingest`), Library (`/library`), document detail (`/documents/[id]`)
+  - Visual Search (`/search`)
+  - Full-bucket File Browser (`/files`) and generic Upload (`/upload`) from the starter
 - **services/api/** — FastAPI backend (layered architecture)
-  - REST API for file upload, listing, deletion
-  - B2 S3 integration via boto3
-  - File metadata extraction (images, PDFs)
-  - Health check endpoint with B2 connectivity verification
-  - Structured JSON logging with request tracing
-  - Prometheus-format metrics endpoint
-- **packages/shared/** — TypeScript type definitions
-  - Mirrors Pydantic models from the API
-  - Consumed by `apps/web/` as workspace dependency
+  - PDF render → page PNGs; ColPali embedding; FAISS index build + MaxSim search
+  - Document CRUD; corpus stats; B2 S3 integration via boto3
+  - Health check, structured JSON logging, Prometheus-format metrics
+- **packages/shared/** — TypeScript type definitions mirroring the Pydantic models
 
 ## Backend Layering
-
-The API follows a strict layered architecture:
 
 ```
 types/     Pydantic models — no logic, no imports from other layers
   |
 config/    Settings (pydantic-settings) — depends only on types
   |
-repo/      Data access (boto3 B2 client) — no business logic
+repo/      Data access + external SDKs (boto3, torch/colpali, faiss, fitz)
   |
 service/   Business logic — calls repo, returns types
   |
@@ -36,109 +34,103 @@ runtime/   FastAPI routes — calls service, never repo directly
 ```
 
 ### Layering Rules
-
 1. Dependencies flow downward only: `types` -> `config` -> `repo` -> `service` -> `runtime`
-2. No backward imports (e.g., service must not import from runtime)
-3. `boto3` only allowed in `repo/` layer
+2. No backward imports (service must not import from runtime)
+3. `boto3` only allowed in `repo/` — verified by `tests/test_structure.py`
 4. All boundary data uses Pydantic models (no raw dicts across layers)
 5. Each file stays under 300 lines
 
+### External SDK containment
+`torch` / `colpali-engine` / `transformers`, `faiss`, and `fitz` (PyMuPDF) are
+imported **lazily inside the repo/ functions** that use them, so importing the
+app (and the structural + contract tests) never pulls in the multi-GB ML stack
+and no model weights are downloaded during the build.
+
 ### Directory Structure
-
 ```
-services/api/
-  main.py                  App entrypoint, middleware, router registration
-  app/
-    types/                 Pydantic models (FileMetadata, UploadStats, etc.)
-    config/                Settings loaded from environment
-    repo/                  B2 S3 client (data access layer)
-    service/               Business logic (upload, files, metadata)
-    runtime/               FastAPI route handlers
-  tests/                   pytest tests (structural + integration)
+services/api/app/
+  types/       Pydantic models (Document, SearchResponse, CorpusStats, FileMetadata, ...)
+  config/      Settings loaded from environment (B2_*, COLPALI_*, HF_TOKEN)
+  repo/        b2_client.py, b2_object.py, store.py, pdf_render.py, colpali.py, faiss_index.py, counter.py
+  service/     documents.py, ingest.py, search.py, files.py, upload.py, metadata.py
+  runtime/     documents.py, search.py, files.py, upload.py, health.py, metrics.py, ratelimit.py
 ```
 
-## Boundary Invariants
+## Data Stores — Backblaze B2 (sole store, no database)
 
-- **No external SDK leakage**: `boto3` is only imported in `app/repo/`. All other layers interact with B2 through the repo interface.
-- **No raw dicts at boundaries**: All data crossing layer boundaries uses typed Pydantic models.
-- **No cross-layer mutable state**: Configuration is read-only after init, and no mutable state is shared *between* layers. Intra-layer caches/counters (the listing cache in `repo/b2_client.py`, the download counter in `repo/counter.py`, the rate-limit and metrics state in `runtime/`) are module-local and guarded by a `threading.Lock`.
-- **Validated inputs**: All HTTP inputs validated by FastAPI/Pydantic. File keys reject empty and path-traversal patterns; optional prefix confinement via `ALLOWED_KEY_PREFIX` (off by default).
+S3-compatible API only (no b2-native). Object layout:
 
-## Deployment
+- `pages/<doc-id>/<n>.png` — rendered page images
+- `embeddings/<doc-id>/<n>.npy` — per-page ColPali multi-vector embeddings
+- `index/index.faiss` + `index/mapping.json` — FAISS index + row→page map
+- `documents/<doc-id>/meta.json` — document record (title, page_count, dpi, model, status, byte counts, timestamps)
+- `uploads/<name>` — objects from the starter's generic upload
 
-- **Local dev** — `pnpm dev` runs both services via `concurrently`
-  - Web: `localhost:3000`
-  - API: `localhost:8000`
-- **Railway** — two services from the same repo
-  - See `infra/railway/README.md` for configuration
-
-## Data Stores
-
-- **Backblaze B2** — object storage (S3-compatible API)
-  - All uploaded files stored in a single bucket
-  - File listing and metadata via S3 `list_objects_v2` / `head_object`
-  - No application database — B2 is the sole data store
+S3 operations: `put_object`, `get_object`, `list_objects_v2` (paginated,
+full-bucket and `documents/`-scoped), `head_bucket` (health),
+`delete_objects` (prefix-scoped purge), `generate_presigned_url` (serve page
+images). The S3 endpoint is derived from `B2_REGION`; no region string is
+hardcoded in source.
 
 ## External Services
 
-- **Backblaze B2 S3 API** — file storage, retrieval, deletion, presigned URLs
-
-## Trust Boundaries
-
-See [docs/SECURITY.md](docs/SECURITY.md) for full security documentation.
-
-- **Frontend -> API** — CORS-restricted to configured origins. `CORSMiddleware` is registered LAST in `main.py` (outermost) so it wraps **every** response, including uncaught-exception 500s — otherwise the browser would block error responses and the UI would only see an opaque "network error". See [docs/RELIABILITY.md](docs/RELIABILITY.md#error-handling). A per-IP rate-limit middleware sits inner to CORS; see [docs/SECURITY.md](docs/SECURITY.md#rate-limiting).
-- **API -> B2** — authenticated via application keys, signature v4
-- **Client -> B2** — presigned URLs for download (10-min expiry, forced attachment)
+- **Backblaze B2 S3 API** — storage, retrieval, deletion, presigned URLs
+- **ColPali** (`colpali-engine`) — runs **locally**, CPU by default with CUDA
+  autodetect. No external provider key. `HF_TOKEN` is an optional one-time
+  model-download token for the gated PaliGemma base only.
 
 ## Data Flows
 
-- **Upload**: Browser -> `POST /upload` (multipart) -> API validates -> service orchestrates -> repo writes to B2 -> metadata extracted -> response
-- **List**: Browser -> `GET /files` -> service calls repo -> returns file list
-- **Download**: Browser -> `GET /files/{key}/download` -> service validates key -> repo generates presigned URL -> browser downloads
-- **Delete**: Browser -> `DELETE /files/{key}` -> service validates key -> repo deletes from B2
+- **Ingest (create)**: Browser -> `POST /documents` -> render pages (fitz) ->
+  `put_object` page PNGs -> write `meta.json` (status `rendered`)
+- **Index (run)**: Browser -> `POST /documents/{id}/index` -> load pages from B2
+  -> `embed_images` (ColPali) -> `put_object` `.npy` -> rebuild FAISS ->
+  `put_object` index + mapping -> status `indexed`
+- **Search**: Browser -> `GET /search?q=` -> load index from B2 -> `embed_query`
+  -> MaxSim rank -> presigned page URLs + scores
+- **Read/Edit/Delete**: `GET/PATCH/DELETE /documents/{id}` -> service -> B2
+  (delete is scoped to the document's own prefixes, then the index is rebuilt)
+
+## Trust Boundaries
+
+See [docs/SECURITY.md](docs/SECURITY.md). CORS is registered LAST (outermost) so
+every response — including error 500s — carries CORS headers. A per-IP
+rate-limit middleware sits inner to CORS. Document and search routes are
+unauthenticated and corpus-wide (single-tenant demo stance).
 
 ## Observability
-
-- Structured JSON logging on all requests with `request_id`
-- Request timing middleware (logs duration per request; also the catch-all that converts uncaught exceptions to a typed JSON 500)
-- `/metrics` endpoint (Prometheus format: request count, latency, upload count)
-- `/health` endpoint (B2 connectivity check)
+- Structured JSON logging with `request_id`
+- Request timing middleware (also the catch-all that maps uncaught exceptions to a typed 500)
+- `/metrics` (Prometheus format) and `/health` (B2 connectivity check)
 
 ## API Contract
-
 - Checked-in OpenAPI artifact: `docs/api/openapi.json`
-- Export/check command: `pnpm contract:export` / `pnpm contract:check`
+- Export/check: `pnpm contract:export` / `pnpm contract:check`
 - FastAPI freshness test: `services/api/tests/test_openapi_contract.py`
 - Frontend route drift test: `apps/web/src/lib/api-contract.test.ts`
-
-The frontend client keeps a small `API_CLIENT_ROUTES` registry in
-`apps/web/src/lib/api-client.ts`. Tests compare that registry to the checked-in
-OpenAPI artifact so route changes fail loudly before the hand-written client can
-silently drift from FastAPI. `GET /metrics` is intentionally server-only.
+- `GET /metrics` is intentionally server-only.
 
 ## Canonical Files
-
-- Layered API handler: `services/api/app/runtime/upload.py`
-- Service orchestration: `services/api/app/service/upload.py`
-- B2 data access (repo layer): `services/api/app/repo/b2_client.py`
-- Pydantic models: `services/api/app/types/` (`files.py`, `upload.py`, `stats.py`, `formatting.py`)
-- Config (pydantic-settings): `services/api/app/config/settings.py`
+- Visual embedding: `services/api/app/repo/colpali.py`
+- FAISS index + MaxSim: `services/api/app/repo/faiss_index.py`
+- PDF render: `services/api/app/repo/pdf_render.py`
+- Generic B2 object ops: `services/api/app/repo/store.py`
+- Ingest orchestration: `services/api/app/service/ingest.py`
+- Search orchestration: `services/api/app/service/search.py`
+- Pydantic models: `services/api/app/types/`
+- Config: `services/api/app/config/settings.py`
 - Structural tests: `services/api/tests/test_structure.py`
-- OpenAPI contract: `docs/api/openapi.json`
-- OpenAPI exporter: `services/api/scripts/export_openapi.py`
-- Frontend API client: `apps/web/src/lib/api-client.ts`
-- Shared TypeScript types: `packages/shared/src/types.ts`
 
 ## Core Features
-
-- [File Upload](docs/features/file-upload.md)
-- [File Browser](docs/features/file-browser.md)
+- [Document Ingest](docs/features/document-ingest.md)
+- [ColPali Embedding](docs/features/colpali-embedding.md)
+- [FAISS Index](docs/features/faiss-index.md)
+- [Visual Search](docs/features/visual-search.md)
+- [Document Library](docs/features/document-library.md)
 - [Dashboard](docs/features/dashboard.md)
-- [Metadata Extraction](docs/features/metadata-extraction.md)
+- [File Browser](docs/features/file-browser.md)
 
 ## References
-
-- [docs/SECURITY.md](docs/SECURITY.md) — security principles and implementation
+- [docs/SECURITY.md](docs/SECURITY.md) — security principles
 - [docs/RELIABILITY.md](docs/RELIABILITY.md) — reliability expectations
 - [AGENTS.md](AGENTS.md) — architectural invariants and agent instructions

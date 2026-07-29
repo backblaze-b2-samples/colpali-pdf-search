@@ -24,11 +24,15 @@ Set these on the API service:
 
 | Variable | Value |
 |----------|-------|
-| `B2_ENDPOINT` | Your B2 S3 endpoint |
-| `B2_KEY_ID` | Your B2 key ID |
+| `B2_APPLICATION_KEY_ID` | Your B2 key ID |
 | `B2_APPLICATION_KEY` | Your B2 key |
 | `B2_BUCKET_NAME` | Your bucket name |
+| `B2_REGION` | Your bucket's region (e.g. `us-west-004`); the S3 endpoint is derived from it |
 | `API_CORS_ORIGINS` | Your web service URL (e.g., `https://web-production-xxx.up.railway.app`) |
+
+Optional: `B2_PUBLIC_URL_BASE`, and the ColPali knobs `COLPALI_MODEL`,
+`COLPALI_DEVICE`, `HF_TOKEN`. Note ColPali needs meaningful CPU/RAM (or a GPU
+service) and downloads multi-GB weights on first use.
 
 Set this on the Web service:
 

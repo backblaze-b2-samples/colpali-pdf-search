@@ -1,6 +1,35 @@
 {
   "components": {
     "schemas": {
+      "Body_ingest_document_endpoint_documents_post": {
+        "properties": {
+          "dpi": {
+            "default": 150,
+            "title": "Dpi",
+            "type": "integer"
+          },
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          },
+          "model": {
+            "default": "vidore/colpali-v1.2",
+            "title": "Model",
+            "type": "string"
+          },
+          "title": {
+            "default": "",
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_ingest_document_endpoint_documents_post",
+        "type": "object"
+      },
       "Body_upload_upload_post": {
         "properties": {
           "file": {
@@ -13,6 +42,60 @@
           "file"
         ],
         "title": "Body_upload_upload_post",
+        "type": "object"
+      },
+      "CorpusStats": {
+        "description": "Dashboard rollup across every ingested document.",
+        "properties": {
+          "documents": {
+            "title": "Documents",
+            "type": "integer"
+          },
+          "embedding_bytes": {
+            "title": "Embedding Bytes",
+            "type": "integer"
+          },
+          "embedding_bytes_human": {
+            "title": "Embedding Bytes Human",
+            "type": "string"
+          },
+          "index_bytes": {
+            "title": "Index Bytes",
+            "type": "integer"
+          },
+          "index_bytes_human": {
+            "title": "Index Bytes Human",
+            "type": "string"
+          },
+          "indexed_documents": {
+            "title": "Indexed Documents",
+            "type": "integer"
+          },
+          "page_bytes": {
+            "title": "Page Bytes",
+            "type": "integer"
+          },
+          "page_bytes_human": {
+            "title": "Page Bytes Human",
+            "type": "string"
+          },
+          "total_pages": {
+            "title": "Total Pages",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "documents",
+          "indexed_documents",
+          "total_pages",
+          "page_bytes",
+          "page_bytes_human",
+          "embedding_bytes",
+          "embedding_bytes_human",
+          "index_bytes",
+          "index_bytes_human"
+        ],
+        "title": "CorpusStats",
         "type": "object"
       },
       "DailyUploadCount": {
@@ -31,6 +114,195 @@
           "uploads"
         ],
         "title": "DailyUploadCount",
+        "type": "object"
+      },
+      "Document": {
+        "description": "Summary record for one ingested PDF (from documents/<id>/meta.json).",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "dpi": {
+            "title": "Dpi",
+            "type": "integer"
+          },
+          "embedding_bytes": {
+            "default": 0,
+            "title": "Embedding Bytes",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "page_bytes": {
+            "default": 0,
+            "title": "Page Bytes",
+            "type": "integer"
+          },
+          "page_count": {
+            "title": "Page Count",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "thumbnail_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thumbnail Url"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "page_count",
+          "dpi",
+          "model",
+          "status",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "Document",
+        "type": "object"
+      },
+      "DocumentDetail": {
+        "description": "Full document view: the summary plus streamable page images.",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "dpi": {
+            "title": "Dpi",
+            "type": "integer"
+          },
+          "embedding_bytes": {
+            "default": 0,
+            "title": "Embedding Bytes",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "page_bytes": {
+            "default": 0,
+            "title": "Page Bytes",
+            "type": "integer"
+          },
+          "page_count": {
+            "title": "Page Count",
+            "type": "integer"
+          },
+          "pages": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/DocumentPage"
+            },
+            "title": "Pages",
+            "type": "array"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "thumbnail_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thumbnail Url"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "page_count",
+          "dpi",
+          "model",
+          "status",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "DocumentDetail",
+        "type": "object"
+      },
+      "DocumentPage": {
+        "description": "One rendered page with a short-lived presigned URL to its PNG in B2.",
+        "properties": {
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "page",
+          "key",
+          "url"
+        ],
+        "title": "DocumentPage",
+        "type": "object"
+      },
+      "DocumentRenameRequest": {
+        "properties": {
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "title": "DocumentRenameRequest",
         "type": "object"
       },
       "FileMetadata": {
@@ -310,6 +582,71 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "SearchHit": {
+        "description": "A single page retrieved for a visual query, with its MaxSim score.",
+        "properties": {
+          "doc_id": {
+            "title": "Doc Id",
+            "type": "string"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "score": {
+            "title": "Score",
+            "type": "number"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "doc_id",
+          "title",
+          "page",
+          "score",
+          "key",
+          "url"
+        ],
+        "title": "SearchHit",
+        "type": "object"
+      },
+      "SearchResponse": {
+        "properties": {
+          "hits": {
+            "items": {
+              "$ref": "#/components/schemas/SearchHit"
+            },
+            "title": "Hits",
+            "type": "array"
+          },
+          "query": {
+            "title": "Query",
+            "type": "string"
+          },
+          "top_k": {
+            "title": "Top K",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "query",
+          "top_k",
+          "hits"
+        ],
+        "title": "SearchResponse",
+        "type": "object"
+      },
       "UploadStats": {
         "properties": {
           "total_downloads": {
@@ -387,11 +724,268 @@
   },
   "info": {
     "description": "File upload and management API backed by Backblaze B2",
-    "title": "OSS Starter Kit API",
+    "title": "ColPali PDF Search API",
     "version": "0.1.0"
   },
   "openapi": "3.1.0",
   "paths": {
+    "/documents": {
+      "get": {
+        "operationId": "list_documents_endpoint_documents_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Document"
+                  },
+                  "title": "Response List Documents Endpoint Documents Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Documents Endpoint",
+        "tags": [
+          "documents"
+        ]
+      },
+      "post": {
+        "operationId": "ingest_document_endpoint_documents_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_ingest_document_endpoint_documents_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Document"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Ingest Document Endpoint",
+        "tags": [
+          "documents"
+        ]
+      }
+    },
+    "/documents/stats": {
+      "get": {
+        "operationId": "corpus_stats_endpoint_documents_stats_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CorpusStats"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Corpus Stats Endpoint",
+        "tags": [
+          "documents"
+        ]
+      }
+    },
+    "/documents/{doc_id}": {
+      "delete": {
+        "operationId": "delete_document_endpoint_documents__doc_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "doc_id",
+            "required": true,
+            "schema": {
+              "title": "Doc Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Document Endpoint",
+        "tags": [
+          "documents"
+        ]
+      },
+      "get": {
+        "operationId": "get_document_endpoint_documents__doc_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "doc_id",
+            "required": true,
+            "schema": {
+              "title": "Doc Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Document Endpoint",
+        "tags": [
+          "documents"
+        ]
+      },
+      "patch": {
+        "operationId": "rename_document_endpoint_documents__doc_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "doc_id",
+            "required": true,
+            "schema": {
+              "title": "Doc Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DocumentRenameRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Document"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Rename Document Endpoint",
+        "tags": [
+          "documents"
+        ]
+      }
+    },
+    "/documents/{doc_id}/index": {
+      "post": {
+        "operationId": "index_document_endpoint_documents__doc_id__index_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "doc_id",
+            "required": true,
+            "schema": {
+              "title": "Doc Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Document"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Index Document Endpoint",
+        "tags": [
+          "documents"
+        ]
+      }
+    },
     "/files": {
       "get": {
         "operationId": "list_files_endpoint_files_get",
@@ -919,6 +1513,63 @@
         "summary": "Metrics",
         "tags": [
           "metrics"
+        ]
+      }
+    },
+    "/search": {
+      "get": {
+        "operationId": "search_endpoint_search_get",
+        "parameters": [
+          {
+            "description": "Natural-language visual query",
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "description": "Natural-language visual query",
+              "minLength": 1,
+              "title": "Q",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "top_k",
+            "required": false,
+            "schema": {
+              "default": 10,
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Top K",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Search Endpoint",
+        "tags": [
+          "search"
         ]
       }
     },
