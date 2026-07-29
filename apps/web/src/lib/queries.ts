@@ -136,11 +136,17 @@ export function useCorpusStats() {
   });
 }
 
+// While a document is indexing (a multi-minute CPU op), poll so the persisted
+// per-page progress advances on screen and the page auto-flips to "Indexed"
+// when the server finishes — no manual reload. Polling stops as soon as the
+// status is no longer "indexing".
 export function useDocument(id: string | undefined) {
   return useQuery<DocumentDetail, ApiError>({
     queryKey: qk.document(id ?? ""),
     queryFn: () => getDocument(id as string),
     enabled: !!id,
+    refetchInterval: (query) =>
+      query.state.data?.status === "indexing" ? 2000 : false,
   });
 }
 
@@ -166,6 +172,17 @@ export function useIndexDocument() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => indexDocument(id),
+    // Optimistically flip the cached doc to "indexing" so useDocument starts
+    // polling immediately (the synchronous POST resolves only ~90s later, and
+    // the server has already flushed status="indexing" to B2 at that point).
+    onMutate: (id: string) => {
+      qc.setQueryData<DocumentDetail>(qk.document(id), (old) =>
+        old ? { ...old, status: "indexing", pages_indexed: 0 } : old,
+      );
+    },
+    // On failure, drop the optimistic state and re-read the server's truth.
+    onError: (_error, id) =>
+      qc.invalidateQueries({ queryKey: qk.document(id) }),
     onSuccess: () => qc.invalidateQueries({ queryKey: qk.all }),
   });
 }

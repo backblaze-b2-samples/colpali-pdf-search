@@ -45,7 +45,7 @@ export interface FileUploadResponse {
   metadata: FileMetadataDetail | null;
 }
 
-export type DocumentStatus = "rendered" | "indexed";
+export type DocumentStatus = "rendered" | "indexing" | "indexed";
 
 export interface Document {
   id: string;
@@ -58,6 +58,8 @@ export interface Document {
   updated_at: string;
   page_bytes: number;
   embedding_bytes: number;
+  // Pages embedded so far while status === "indexing" (0..page_count).
+  pages_indexed: number;
   thumbnail_url: string | null;
 }
 

@@ -4,9 +4,12 @@ from pydantic import BaseModel
 
 # Document lifecycle status.
 #   rendered -> PDF pages have been rasterized to PNGs and stored in B2.
+#   indexing -> ColPali embedding is in progress; `pages_indexed` advances from
+#               0 to `page_count` as each page is embedded (persisted so a
+#               reload/poll can observe progress).
 #   indexed  -> pages have been embedded with ColPali and folded into the
 #               FAISS index; the document is searchable.
-DocumentStatus = str  # "rendered" | "indexed"
+DocumentStatus = str  # "rendered" | "indexing" | "indexed"
 
 
 class Document(BaseModel):
@@ -23,6 +26,10 @@ class Document(BaseModel):
     # Write-amplification headline: raw page-image bytes vs embedding bytes.
     page_bytes: int = 0
     embedding_bytes: int = 0
+    # Pages embedded so far while status == "indexing" (0..page_count). Drives
+    # determinate progress in the UI; 0 for rendered docs and reaches
+    # page_count when indexing completes.
+    pages_indexed: int = 0
     # Presigned URL to page 1 (for library thumbnails). Not persisted in
     # meta.json; populated on read.
     thumbnail_url: str | None = None

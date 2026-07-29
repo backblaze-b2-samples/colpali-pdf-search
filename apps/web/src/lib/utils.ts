@@ -26,3 +26,15 @@ export function formatDate(dateStr: string) {
     minute: "2-digit",
   });
 }
+
+// Single source of truth for how a document's lifecycle status is surfaced in
+// the UI (badge label + shadcn Badge variant), used by both the library card
+// and the detail header so the two never drift.
+export function documentStatusBadge(status: string): {
+  label: string;
+  variant: "default" | "secondary";
+} {
+  if (status === "indexed") return { label: "Indexed", variant: "default" };
+  if (status === "indexing") return { label: "Indexing…", variant: "secondary" };
+  return { label: "Rendered", variant: "secondary" };
+}

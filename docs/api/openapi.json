@@ -150,6 +150,11 @@
             "title": "Page Count",
             "type": "integer"
           },
+          "pages_indexed": {
+            "default": 0,
+            "title": "Pages Indexed",
+            "type": "integer"
+          },
           "status": {
             "title": "Status",
             "type": "string"
@@ -229,6 +234,11 @@
             },
             "title": "Pages",
             "type": "array"
+          },
+          "pages_indexed": {
+            "default": 0,
+            "title": "Pages Indexed",
+            "type": "integer"
           },
           "status": {
             "title": "Status",

@@ -1,14 +1,16 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Loader2, Pencil, Play, Trash2 } from "lucide-react";
+import { Loader2, Pencil, Play, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/ui/error-state";
 import {
@@ -35,7 +37,7 @@ import {
   useIndexDocument,
   useRenameDocument,
 } from "@/lib/queries";
-import { formatDate, humanizeBytes } from "@/lib/utils";
+import { documentStatusBadge, formatDate, humanizeBytes } from "@/lib/utils";
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
@@ -63,6 +65,15 @@ export function DocumentDetailView({ id }: { id: string }) {
   if (!doc) return null;
 
   const indexed = doc.status === "indexed";
+  // Treat the local mutation-pending state as "indexing" too, so the UI shows
+  // progress on the same click that started it (before the first poll lands).
+  const isIndexing = doc.status === "indexing" || runIndex.isPending;
+  const status = documentStatusBadge(isIndexing ? "indexing" : doc.status);
+  const pagesDone = doc.pages_indexed ?? 0;
+  const indexPercent =
+    doc.page_count > 0
+      ? Math.min(100, Math.round((pagesDone / doc.page_count) * 100))
+      : 0;
 
   const submitRename = () => {
     rename.mutate(
@@ -101,15 +112,19 @@ export function DocumentDetailView({ id }: { id: string }) {
         <div className="min-w-0">
           <div className="flex items-center gap-3">
             <h1 className="page-title truncate">{doc.title}</h1>
-            <Badge variant={indexed ? "default" : "secondary"}>
-              {indexed ? "Indexed" : "Rendered"}
-            </Badge>
+            <Badge variant={status.variant}>{status.label}</Badge>
           </div>
           <p className="mt-1.5 text-sm text-muted-foreground">
             {doc.page_count} pages · added {formatDate(doc.created_at)}
           </p>
         </div>
         <div className="flex shrink-0 gap-2">
+          <Button variant="outline" size="sm" className="h-8" asChild>
+            <Link href="/search">
+              <Search className="h-3.5 w-3.5" />
+              Search
+            </Link>
+          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -122,13 +137,13 @@ export function DocumentDetailView({ id }: { id: string }) {
             <Pencil className="h-3.5 w-3.5" />
             Rename
           </Button>
-          <Button size="sm" className="h-8" onClick={submitIndex} disabled={runIndex.isPending}>
-            {runIndex.isPending ? (
+          <Button size="sm" className="h-8" onClick={submitIndex} disabled={isIndexing}>
+            {isIndexing ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
             ) : (
               <Play className="h-3.5 w-3.5" />
             )}
-            {indexed ? "Re-index" : "Run indexing"}
+            {isIndexing ? "Indexing…" : indexed ? "Re-index" : "Run indexing"}
           </Button>
           <AlertDialog>
             <AlertDialogTrigger asChild>
@@ -166,11 +181,24 @@ export function DocumentDetailView({ id }: { id: string }) {
         </CardContent>
       </Card>
 
-      {runIndex.isPending && (
-        <p className="text-sm text-muted-foreground">
-          Embedding pages with ColPali and rebuilding the FAISS index… this can
-          take a while on CPU.
-        </p>
+      {isIndexing && (
+        <div className="space-y-2 rounded-md border border-border bg-muted/20 p-4">
+          <div className="flex items-center justify-between gap-3 text-sm">
+            <span className="font-medium">
+              {pagesDone < doc.page_count
+                ? `Embedding page ${pagesDone + 1} of ${doc.page_count} with ColPali…`
+                : "Rebuilding the FAISS index…"}
+            </span>
+            <span className="tabular-nums text-muted-foreground">
+              {indexPercent}%
+            </span>
+          </div>
+          <Progress value={indexPercent} />
+          <p className="text-xs text-muted-foreground">
+            Embedding runs on CPU and can take a while. You can leave this page —
+            indexing continues on the server and this view updates automatically.
+          </p>
+        </div>
       )}
 
       <div>

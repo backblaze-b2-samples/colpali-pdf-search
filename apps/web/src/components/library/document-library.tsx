@@ -9,15 +9,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { useDocuments } from "@/lib/queries";
-import { formatDate } from "@/lib/utils";
+import { documentStatusBadge, formatDate } from "@/lib/utils";
 
 function StatusBadge({ status }: { status: string }) {
-  const indexed = status === "indexed";
-  return (
-    <Badge variant={indexed ? "default" : "secondary"}>
-      {indexed ? "Indexed" : "Rendered"}
-    </Badge>
-  );
+  const { label, variant } = documentStatusBadge(status);
+  return <Badge variant={variant}>{label}</Badge>;
 }
 
 export function DocumentLibrary() {

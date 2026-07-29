@@ -51,7 +51,11 @@ def test_run_indexing_embeds_and_marks_indexed(monkeypatch, mocked):
         "page_bytes": 12,
         "embedding_bytes": 0,
     }
+    saved: list[dict] = []
     monkeypatch.setattr(ingest, "load_meta", lambda doc_id: dict(meta))
+    # Capture every persisted snapshot so we can assert progress is flushed as
+    # indexing advances (the no-op save_meta from `mocked` is replaced here).
+    monkeypatch.setattr(ingest, "save_meta", lambda m: saved.append(dict(m)))
     monkeypatch.setattr(
         ingest.store,
         "list_prefix",
@@ -68,6 +72,19 @@ def test_run_indexing_embeds_and_marks_indexed(monkeypatch, mocked):
     doc = ingest.run_indexing("a" * 32)
     assert doc.status == "indexed"
     assert doc.embedding_bytes > 0
+    assert doc.pages_indexed == 2
+
+    # status="indexing" (pages_indexed=0) is flushed BEFORE any embedding so a
+    # mid-index reload observes an in-progress doc, not a re-runnable one.
+    assert saved[0]["status"] == "indexing"
+    assert saved[0]["pages_indexed"] == 0
+    # The counter advances determinately per page and never regresses.
+    progress = [s["pages_indexed"] for s in saved]
+    assert progress == sorted(progress)
+    assert 1 in progress and 2 in progress
+    # The final persisted snapshot marks the doc indexed at full progress.
+    assert saved[-1]["status"] == "indexed"
+    assert saved[-1]["pages_indexed"] == 2
 
 
 def test_run_indexing_missing_document(monkeypatch):

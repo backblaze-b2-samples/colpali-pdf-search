@@ -38,12 +38,27 @@ the "run indexing" step that makes a document searchable (status → `indexed`).
 ## Outputs
 - `embeddings/<id>/<n>.npy` — one multi-vector array per page (float32, L2-normalized)
 - Rebuilt `index/index.faiss` + `index/mapping.json`
-- Updated `meta.json` (status `indexed`, `embedding_bytes`)
+- Updated `meta.json` (status `indexing` → `indexed`, `pages_indexed`, `embedding_bytes`)
+
+## Status Lifecycle & Progress
+- `run_indexing()` flushes `status="indexing"` + `pages_indexed=0` to
+  `meta.json` **before** the multi-minute embed begins, then bumps
+  `pages_indexed` after each page's `.npy` is written, then sets `indexed` at
+  the end. Pages are embedded one at a time so the counter advances
+  determinately rather than only at the end.
+- The detail page (`useDocument`) **polls** every 2s while `status === "indexing"`
+  and renders an advancing progress bar ("Embedding page X of N"). Because the
+  in-progress status is persisted, a mid-index reload observes the in-progress
+  state (disabled Run-indexing button) and auto-updates to `indexed` when the
+  server finishes — no manual reload.
+- The POST itself stays synchronous; the persisted status + client polling are
+  what make progress observable, not a background-task refactor.
 
 ## Flow
-- User clicks "Run indexing" on the document detail page
-- API loads every page PNG from B2 and calls `embed_images()`
-- The multi-vectors are saved as `.npy` under `embeddings/<id>/`
+- User clicks "Run indexing" on the document detail page (status → `indexing`,
+  flushed to B2 before embedding starts)
+- API loads each page PNG from B2 and calls `embed_images()` per page, saving the
+  multi-vectors as `.npy` under `embeddings/<id>/` and bumping `pages_indexed`
 - `rebuild_index()` reloads all embeddings across the corpus and rebuilds the
   global FAISS index, uploading it to `index/`
 - Status becomes `indexed`

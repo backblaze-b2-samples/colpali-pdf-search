@@ -93,7 +93,13 @@ def create_document(
 
 def run_indexing(doc_id: str) -> Document:
     """Embed a document's pages with ColPali, store the vectors, and rebuild
-    the corpus index. Status becomes `indexed`."""
+    the corpus index. Status becomes `indexed`.
+
+    Progress is persisted to the doc meta so a mid-index reload/poll observes
+    it: `status="indexing"` + `pages_indexed=0` is flushed to B2 *before* the
+    multi-minute, CPU-bound embedding begins, and `pages_indexed` is bumped
+    after each page's embedding is written. Pages are embedded one at a time so
+    the counter advances determinately rather than jumping only at the end."""
     validate_doc_id(doc_id)
     meta = load_meta(doc_id)
     if not meta:
@@ -104,17 +110,28 @@ def run_indexing(doc_id: str) -> Document:
     if not page_objs:
         raise IngestError("Document has no rendered pages to index")
 
-    images = [store.get_object_bytes(obj["Key"]) for obj in page_objs]
-    embeddings = colpali.embed_images(images, model_name=meta["model"])
+    # Flush the in-progress status BEFORE the long embed so a reload/poll sees
+    # an in-progress doc (disabled Run-indexing button) rather than a stale,
+    # re-runnable "rendered" one.
+    meta["status"] = "indexing"
+    meta["pages_indexed"] = 0
+    meta["updated_at"] = datetime.now(UTC).isoformat()
+    save_meta(meta)
 
     embedding_bytes = 0
-    for obj, vectors in zip(page_objs, embeddings, strict=True):
+    for done, obj in enumerate(page_objs, start=1):
         number = _page_number(obj["Key"])
+        image = store.get_object_bytes(obj["Key"])
+        vectors = colpali.embed_images([image], model_name=meta["model"])[0]
         embedding_bytes += store.put_bytes(
             f"{EMBED_PREFIX}{doc_id}/{number}.npy",
             _npy_bytes(vectors),
             "application/octet-stream",
         )
+        # Persist per-page progress so the polling UI advances determinately.
+        meta["pages_indexed"] = done
+        meta["updated_at"] = datetime.now(UTC).isoformat()
+        save_meta(meta)
 
     meta["status"] = "indexed"
     meta["embedding_bytes"] = embedding_bytes
